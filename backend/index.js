@@ -7,6 +7,8 @@ const multer = require("multer");
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
+const Transcription = require("./models/Transcription");
+
 
 dotenv.config();
 
@@ -35,10 +37,18 @@ app.post("/upload", upload.single("audio"), (req, res) => {
   res.json({ message: "File uploaded ✅", file: req.file });
 });
 
+
+app.use("/uploads", express.static("uploads"));
+
+
 // ---------------------------
 // Step 4: Deepgram transcription route
 app.post("/transcribe", upload.single("audio"), async (req, res) => {
   try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
     const audioPath = path.resolve(req.file.path);
     const audioData = fs.readFileSync(audioPath);
 
@@ -47,22 +57,43 @@ app.post("/transcribe", upload.single("audio"), async (req, res) => {
       url: "https://api.deepgram.com/v1/listen",
       headers: {
         Authorization: `Token ${process.env.DEEPGRAM_API_KEY}`,
-        "Content-Type": "audio/wav", // or audio/mpeg
+        "Content-Type": "audio/wav",
       },
       data: audioData,
     });
 
-    const transcription = response.data?.results?.channels[0]?.alternatives[0]?.transcript || "";
+    const transcriptionText =
+      response.data?.results?.channels[0]?.alternatives[0]?.transcript || "";
+
+    // Save to MongoDB
+    const newRecord = new Transcription({
+      filename: req.file.originalname,
+      path: req.file.path,
+      transcription: transcriptionText,
+    });
+
+    await newRecord.save();
 
     res.json({
       message: "Transcription successful ✅",
-      transcription,
+      transcription: transcriptionText,
     });
   } catch (error) {
     console.error("Transcription error ❌", error.message);
     res.status(500).json({ error: "Transcription failed" });
   }
 });
+
+
+
+app.get("/transcriptions", async (req, res) => {
+  const allTranscriptions = await Transcription.find().sort({ createdAt: -1 });
+  res.json(allTranscriptions);
+});
+
+
+
+
 
 // Start backend
 const PORT = process.env.PORT || 5000;
