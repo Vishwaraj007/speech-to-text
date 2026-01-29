@@ -13,7 +13,10 @@ const Transcription = require("./models/Transcription");
 dotenv.config();
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: "*",     // allow frontend (Vercel)
+  methods: ["GET", "POST"],
+}));
 app.use(express.json());
 
 // Multer setup
@@ -98,5 +101,5 @@ app.get("/transcriptions", async (req, res) => {
 // Start backend
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Backend running 🚀 : http://localhost:${PORT}`);
+  console.log(`Backend running 🚀 : {PORT}`);
 });
